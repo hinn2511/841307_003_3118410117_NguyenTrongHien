@@ -3,14 +3,16 @@ package Server;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.IOException;
+import java.net.Socket;
 import java.util.StringTokenizer;
 import java.util.UUID;
 
 public class ServerToClient extends Thread {
-	private String clientUUID;
-	private String otherClientUUID;
+	private String clientName;
+	private String otherClientName;
 	private BufferedReader in;
 	private BufferedWriter out;
+	private User user;
 	
 	//Nhận dữ liệu từ client
 	public String receive() throws IOException {
@@ -36,10 +38,11 @@ public class ServerToClient extends Thread {
 		out.flush();
 	}
 	
-	public ServerToClient(String uuid) throws IOException {
-		this.clientUUID = uuid;
-		in = Server.users.get(uuid).getIn();
-		out = Server.users.get(uuid).getOut();
+	public ServerToClient(String name, User user) throws IOException {
+		this.user = user;
+		this.clientName = name;
+		in = user.getIn();
+		out = user.getOut();
 	}
 
 	@Override
@@ -55,73 +58,102 @@ public class ServerToClient extends Thread {
 					
 					String usernickname = st.nextToken();
 					
-					if(Server.nicknames.indexOf(usernickname) > -1)
+					if(Server.users.get(usernickname) != null)
+						//Gửi phản hồi từ chối
 						send("nickname-denied");
 					else {
+						//Gửi phản hồi đồng ý
 						send("nickname-accepted:" + usernickname);
-						Server.updateUserNickname(clientUUID, usernickname);
-						Server.nicknames.add(usernickname);
-						Server.idleUUIDs.add(clientUUID);
-						System.out.println(Server.users.get(clientUUID).getNickname() + " " + clientUUID);
+						
+						clientName = usernickname;
+						//Thêm vào danh sách phòng chờ
+						Server.idleNicknames.add(clientName);
+						//Thêm vào danh sách các user hiện tại
+						Server.users.put(usernickname, user);
 					}
 				}
 				
 				if(requestType.equals("searching")) {
 					if(Server.users.size() == 1)
+						//Gửi phản hồi không tìm thấy do chỉ có duy nhất 1 client
 						send("user-not-found");
 					else {
 						boolean found = false;
-						for(String idleUuid : Server.idleUUIDs) 
+						//Tìm trong danh sách có phòng chờ các nickname chưa bị chặn 
+						for(String idleNickname : Server.idleNicknames) 
 						{
-							if(Server.users.get(clientUUID).getBlockedUUID().indexOf(idleUuid) < 0
-									&& Server.users.get(idleUuid).getBlockedUUID().indexOf(clientUUID) < 0
-									&& !clientUUID.equals(idleUuid)) 
+							if(Server.users.get(clientName).getBlockedNickname().indexOf(idleNickname) < 0
+									&& Server.users.get(idleNickname).getBlockedNickname().indexOf(clientName) < 0
+									&& !clientName.equals(idleNickname)) 
 							{
-								send("found-user:" + Server.users.get(idleUuid).getNickname() + ":" + idleUuid);
+								//Gửi phản hồi tìm thấy nickname
+								send("found-user:" + idleNickname);
 								found = true;
 								break;
 							}
 						}
+						//Gửi phản hồi không tìm thấy do đã chặn hết các user trong phòng chờ
 						if(!found)
 							send("user-not-found");
 					}
 				}
 				
 				if(requestType.equals("start-messaging")) {
-					otherClientUUID = st.nextToken();
-					new ClientToClient(clientUUID, otherClientUUID).start();
+					otherClientName = st.nextToken();
+					
+					//Cả 2 client chuyển sang thread ClientToClient
+					new ClientToClient(clientName, otherClientName).start();
 					break;
 				}
 				
 				if(requestType.equals("accept")) {
-					otherClientUUID = st.nextToken();
+					otherClientName = st.nextToken();
 					
-					send("connected:" + Server.users.get(otherClientUUID).getNickname() + ":" + otherClientUUID);
-					Server.sendTo(otherClientUUID,"connected:" + Server.users.get(clientUUID).getNickname() + ":" + clientUUID);
-					Server.idleUUIDs.remove(clientUUID);
-					Server.idleUUIDs.remove(otherClientUUID);
+					//Gửi thông báo kết nối đến client
+					send("connected:" + otherClientName);
+					
+					//Gửi thông báo kết nối đến client thứ 2
+					Server.sendTo(otherClientName,"connected:" + clientName);
+					
+					//Xóa 2 client khỏi danh sách chờ
+					Server.idleNicknames.remove(clientName);
+					Server.idleNicknames.remove(otherClientName);
 					
 				}
 				
 				if(requestType.equals("decline")) {
-					otherClientUUID = st.nextToken();
+					otherClientName = st.nextToken();
 					
-					User userUpdate1 = Server.users.get(clientUUID);
-					userUpdate1.block(otherClientUUID);
-					Server.users.put(clientUUID, userUpdate1);
+					//thêm nickname client mà server đề nghị vào danh sách chặn của client hiện tại
+					User userUpdate1 = Server.users.get(clientName);
+					userUpdate1.block(otherClientName);
+					Server.users.put(clientName, userUpdate1);
 					
-					User userUpdate2 = Server.users.get(otherClientUUID);
-					userUpdate2.block(clientUUID);
-					Server.users.put(otherClientUUID, userUpdate2);
+					//thêm nickname client hiện tại vào danh sách chặn của client mà server đề nghị 
+					User userUpdate2 = Server.users.get(otherClientName);
+					userUpdate2.block(clientName);
+					Server.users.put(otherClientName, userUpdate2);
 					
-					otherClientUUID = null;
+					otherClientName = null;
 				}
 				
 			}
 		} catch (IOException e) {
-			Server.nicknames.remove(Server.users.get(clientUUID).getNickname());
-			Server.users.remove(clientUUID);
-			Server.idleUUIDs.remove(clientUUID);
+			if(clientName != null) {
+				Server.idleNicknames.remove(clientName);
+				Server.users.remove(clientName);
+			}
+			
+			try {
+				if(user.getIn() != null)
+					user.getIn().close();
+				if(user.getOut() != null)
+					user.getOut().close();
+				if(user.getSocket() != null)
+					user.getSocket().close();
+			} catch (IOException e1) {
+				e1.printStackTrace();
+			}
 		}
 		return;
 	}	

@@ -6,19 +6,19 @@ import java.io.IOException;
 import java.util.StringTokenizer;
 
 public class ClientToClient extends Thread {
-	private String clientUUID;
-	private String otherClientUUID;
+	private String clientName;
+	private String otherClientName;
 	private BufferedReader clientIn;
 	private BufferedWriter otherClientOut;
-	
-	//Chuyển tin nhắn đến client còn lại
+
+	// Chuyển tin nhắn đến client còn lại
 	public void sendToOtherClient(String message) throws IOException {
 		otherClientOut.write(message);
 		otherClientOut.newLine();
 		otherClientOut.flush();
 	}
-	
-	//Nhận tin nhắn từ client
+
+	// Nhận tin nhắn từ client
 	public String receiveFromclient() throws IOException {
 		String clientMessage = "";
 		while (true) {
@@ -28,47 +28,49 @@ public class ClientToClient extends Thread {
 		}
 		return clientMessage;
 	}
-	
-	public ClientToClient(String clientuuid, String otherclientuuid) throws IOException {
-		this.clientUUID = clientuuid;
-		this.otherClientUUID = otherclientuuid;
-		clientIn = Server.users.get(clientuuid).getIn();
-		otherClientOut = Server.users.get(otherclientuuid).getOut();		
+
+	public ClientToClient(String clientName, String otherClientName) throws IOException {
+		this.clientName = clientName;
+		this.otherClientName = otherClientName;
+		clientIn = Server.users.get(clientName).getIn();
+		otherClientOut = Server.users.get(otherClientName).getOut();
 	}
 
 	@Override
 	public void run() {
 		try {
-			while(true) {
+			while (true) {
 				String request = receiveFromclient();
-				System.out.println(request);
 				StringTokenizer st = new StringTokenizer(request, ":");
-				String type = st.nextToken();
-				
-				if(type.equals("send-message")) {
+				String requestType = st.nextToken();
+
+				if (requestType.equals("send-message")) {
 					String message = st.nextToken();
 					sendToOtherClient("receive-message:" + message);
 				}
-				
-				if(type.equals("stop-messaging")) {
-					new ServerToClient(clientUUID).start();
+
+				if (requestType.equals("stop-messaging")) {
+					new ServerToClient(clientName, Server.users.get(clientName)).start();
 					break;
 				}
 			}
-		}
-		catch (IOException e) {
+		} catch (IOException e) {
 			try {
 				sendToOtherClient("other-client-exit");
-				Server.nicknames.remove(Server.users.get(clientUUID).getNickname());
-				Server.users.remove(clientUUID);
-				Server.idleUUIDs.add(otherClientUUID);
-				
-			} catch (IOException e1) {
-				
+				Server.idleNicknames.add(otherClientName);
+				Thread.sleep(1000);
+				if (Server.users.get(clientName).getIn() != null)
+					Server.users.get(clientName).getIn().close();
+				if (Server.users.get(clientName).getOut() != null)
+					Server.users.get(clientName).getOut().close();
+				if (Server.users.get(clientName).getSocket() != null)
+					Server.users.get(clientName).getSocket().close();
+				Server.users.remove(clientName);
+			} catch (IOException | InterruptedException e1) {
+
 			}
 		}
 		return;
 	}
-	
-	
+
 }

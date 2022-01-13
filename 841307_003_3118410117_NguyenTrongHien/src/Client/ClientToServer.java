@@ -23,13 +23,13 @@ public class ClientToServer {
 				String response = Client.receiveResponse();
 				
 				StringTokenizer st = new StringTokenizer(response, ":");
-				String type = st.nextToken();
+				String responseType = st.nextToken();
 				
-				if (type.equals("nickname-denied")) {
+				if (responseType.equals("nickname-denied")) {
 					Client.alert("Nickname đã tồn tại.");
 				}
 
-				if (type.equals("nickname-accepted")) {
+				if (responseType.equals("nickname-accepted")) {
 					Client.clientNickname = st.nextToken();
 
 					nicknameFrame.setVisible(false);
@@ -37,40 +37,36 @@ public class ClientToServer {
 					waitingRoomFrame.setVisible(true);
 				}
 				
-				if (type.equals("found-user")) {
+				if (responseType.equals("found-user")) {
 					
 					String otherNickname = st.nextToken();
-					String otherUUID = st.nextToken();
 
 					boolean accept = Client.confirm("Bạn có muốn chat với " + otherNickname + " không?",
 							"Tham gia phòng chat");
 					if (accept) {
-						Client.sendRequest("accept:" + otherUUID);
+						Client.sendRequest("accept:" + otherNickname);
 					} else {
-						Client.sendRequest("decline:" + otherUUID);
+						Client.sendRequest("decline:" + otherNickname);
 					}
 
 				}
 
-				if (type.equals("user-not-found")) {
+				if (responseType.equals("user-not-found")) {
 					Client.alert("Không tìm thấy người dùng khác. Vui lòng chờ.");
 				}
 
-				if (type.equals("connected")) {
-					String othernameString = st.nextToken();
-					String otherUUID = st.nextToken();
+				if (responseType.equals("connected")) {
 					
-					Client.otherClientNickname = othernameString;
-					Client.otherClientUUID = otherUUID;
+					Client.otherClientNickname = st.nextToken();
 
 					waitingRoomFrame.setVisible(false);
 					chatFrame = new Chat(Client.clientNickname, Client.otherClientNickname);
 					chatFrame.setVisible(true);
 					
-					Client.sendRequest("start-messaging:" + Client.otherClientUUID);
+					Client.sendRequest("start-messaging:" + Client.otherClientNickname);
 				}
 
-				if (type.equals("receive-message")) {
+				if (responseType.equals("receive-message")) {
 					
 					String message = st.nextToken();
 					
@@ -81,13 +77,15 @@ public class ClientToServer {
 					}
 				}
 
-				if (type.equals("other-client-exit")) {
+				if (responseType.equals("other-client-exit")) {
 					Client.sendRequest("stop-messaging");
+					
 					chatFrame.setVisible(false);
 					waitingRoomFrame.setVisible(true);
+					
 					Client.alert(Client.otherClientNickname + " đã thoát khỏi phòng chat.");
+					
 					Client.otherClientNickname = "";
-					Client.otherClientUUID = "";
 				}
 
 			}

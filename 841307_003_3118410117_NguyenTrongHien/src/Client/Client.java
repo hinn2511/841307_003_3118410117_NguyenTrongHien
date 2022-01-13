@@ -15,11 +15,9 @@ public class Client {
 	public static BufferedReader in = null;
 	public static String clientNickname = "";
 	public static String otherClientNickname = "";
-	public static String otherClientUUID = "";
 	
 	//Gửi yêu cầu đến Server
 	public static void sendRequest(String request) throws IOException {
-		System.out.println(request);
 		out.write(request);
 		out.newLine();
 		out.flush();
