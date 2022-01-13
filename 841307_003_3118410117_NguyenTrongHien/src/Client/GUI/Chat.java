@@ -18,6 +18,8 @@ import javax.swing.JButton;
 import javax.swing.JLabel;
 import java.awt.Font;
 import java.awt.Color;
+import java.awt.event.KeyAdapter;
+import java.awt.event.KeyEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.io.IOException;
@@ -57,6 +59,23 @@ public class Chat extends JFrame {
 		txtTinNhan.setBounds(10, 515, 615, 31);
 		panel.add(txtTinNhan);
 		txtTinNhan.setColumns(10);
+		
+		txtTinNhan.addKeyListener(new KeyAdapter() {
+		        public void keyPressed(KeyEvent e) {
+		            if(e.getKeyCode() == KeyEvent.VK_ENTER){
+		            	if(txtTinNhan.getText().equals(""))
+							return;
+						try {
+							Client.sendRequest("send-message:" + txtTinNhan.getText());
+							showMyMessage(txtTinNhan.getText());
+							txtTinNhan.setText("");
+						} catch (IOException | BadLocationException e2) {
+							Client.alert("Đã có lỗi xảy ra.");
+						}
+		            }
+		        }
+
+		    });
 
 		doc = txtKhungChat.getStyledDocument();
 		StyleConstants.setAlignment(right, StyleConstants.ALIGN_RIGHT);

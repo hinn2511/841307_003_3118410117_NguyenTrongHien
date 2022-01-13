@@ -16,6 +16,8 @@ public class Server {
 	
 	public static HashMap<String, User> users = new HashMap<>();
 	public static ArrayList<String> idleNicknames = new ArrayList<>();
+	
+	
 	private static BufferedWriter clientOut;
 	
 	public static void main(String args[]) throws IOException {
